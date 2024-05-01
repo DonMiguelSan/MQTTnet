@@ -3,7 +3,6 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <DebugType>Full</DebugType>
-        <TargetFrameworks>net5.0;net6.0;net7.0</TargetFrameworks>
         <TargetFrameworks Condition=" '$(OS)' == 'Windows_NT' ">$(TargetFrameworks);net452;net461</TargetFrameworks>
         <IsPackable>false</IsPackable>
         <EnableNETAnalyzers>false</EnableNETAnalyzers>
@@ -11,6 +10,7 @@
         <DisableImplicitAspNetCoreAnalyzers>true</DisableImplicitAspNetCoreAnalyzers>
         <NoWarn>1591;NETSDK1138</NoWarn>
         <LangVersion>7.3</LangVersion>
+        <AutoGenerateBindingRedirects>True</AutoGenerateBindingRedirects>
     </PropertyGroup>
 
     <ItemGroup>
@@ -21,6 +21,18 @@
         <ProjectReference Include="..\..\Source\MQTTnet.Extensions.ManagedClient\MQTTnet.Extensions.ManagedClient.csproj" />
         <ProjectReference Include="..\..\Source\MQTTnet.Extensions.WebSocket4Net\MQTTnet.Extensions.WebSocket4Net.csproj" />
         <ProjectReference Include="..\..\Source\MQTTnet\MQTTnet.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
+      <PackageReference Include="System.Text.Json">
+        <Version>8.0.3</Version>
+      </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="f34_CRA_AS_010_01_EXT_cert.pfx">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>
