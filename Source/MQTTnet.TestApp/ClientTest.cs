@@ -10,11 +10,37 @@ using System.Threading.Tasks;
 using MQTTnet.Diagnostics;
 using MQTTnet.Internal;
 using MQTTnet.Protocol;
+using MQTTnet.Packets;
+using System.Security.Authentication;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.IO;
 
 namespace MQTTnet.TestApp
 {
     public static class ClientTest
     {
+        private class CertProvider : IMqttClientCertificatesProvider
+        {
+            private readonly X509Certificate2 privKey;
+            private readonly string pemFilePath;
+
+            public CertProvider(X509Certificate2 privKey, string pemFilePath)
+            {
+                this.privKey = privKey;
+                this.pemFilePath = pemFilePath;
+            }
+
+            public X509CertificateCollection GetCertificates()
+            {
+                return new X509CertificateCollection
+                {
+                    privKey,
+                    new X509Certificate2(pemFilePath),
+                };
+            }
+        }
+
         public static async Task RunAsync()
         {
             try
@@ -24,12 +50,57 @@ namespace MQTTnet.TestApp
 
                 var factory = new MqttFactory(logger);
                 var client = factory.CreateMqttClient();
+
+                // Certificates 
+                var stageId = "f34";
+
+                var deviceName = "CRA_AS_010_01_EXT";
+
+                var pass = "CCcert";
+
+                var pemFilePath = $"{stageId}_{deviceName}_cert.pem";
+
+                var rootCAPath = "rootCA";
+
+                var pfxFilePath = $"{stageId}_{deviceName}_cert.pfx";
+
+                var iotHubName = $"{stageId}-aih-weu-p-001";
+
+                var hostName = $"{iotHubName}.azure-devices.net";
+
+                var userName = $"{hostName}/{deviceName}/?api-version=2021-04-12";
+
+                var msgTopic = $"devices/{deviceName}/messages/events/";
+
+                int port = 8883;
+
+                var privateKey = GetPrivateKey(pfxFilePath, pass, out var combinedCert);
+
+                var tlsOptions = new MqttClientTlsOptions
+                {
+                    // tls enabled 
+                    UseTls = true,
+                    CertificateValidationHandler = ValidationHandler,
+                    SslProtocol = SslProtocols.Tls12,
+                    ClientCertificatesProvider = new CertProvider(combinedCert, pemFilePath),
+
+                };
+
+                var credentials = new MqttClientCredentials(userName, Encoding.UTF8.GetBytes(pass));
+
                 var clientOptions = new MqttClientOptions
                 {
                     ChannelOptions = new MqttClientTcpOptions
                     {
-                        RemoteEndpoint = new DnsEndPoint("127.0.0.1", 0)
-                    }
+                        RemoteEndpoint = new DnsEndPoint(hostName, port),
+                        TlsOptions = tlsOptions,
+                      
+                       
+                    },
+                    
+                    ClientId = deviceName,
+
+                    Credentials = credentials,
                 };
 
                 client.ApplicationMessageReceivedAsync += e =>
@@ -95,9 +166,11 @@ namespace MQTTnet.TestApp
                     await client.SubscribeAsync("test");
 
                     var applicationMessage = new MqttApplicationMessageBuilder()
-                        .WithTopic("A/B/C")
+                        .WithTopic(msgTopic)
                         .WithPayload("Hello World")
+                        // Qos1
                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                        .WithRetainFlag(false)
                         .Build();
 
                     await client.PublishAsync(applicationMessage);
@@ -107,6 +180,19 @@ namespace MQTTnet.TestApp
             {
                 Console.WriteLine(exception);
             }
+        }
+
+        private static bool ValidationHandler(MqttClientCertificateValidationEventArgs args)
+        {
+            return true;
+        }
+
+        private static RSA GetPrivateKey(string pfxFilePath, string pass , out X509Certificate2 cert)
+        {
+            cert = new X509Certificate2(pfxFilePath, pass, X509KeyStorageFlags.Exportable);
+
+            return cert.GetRSAPrivateKey();
+
         }
     }
 }
